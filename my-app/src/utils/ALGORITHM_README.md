@@ -43,7 +43,23 @@ This global state includes essentially everything that we will be using to calcu
 - **error**: A string that stores any error message that occurs during the quiz process
 
 
-
-
 ## Step 1: User Inputs their Top 3 Categories
+
+The user starts at the [HomePage.js](../Pages/HomePage.js) page. This page allows them to browse the cateogires and their questions and select their top 3 categories. 
+
+We limit them to only 3 categories because otherwise they would have too many questions in the quiz, leading to survey fatigue and lower quality responses.
+
+When the user selects a category, we update the `selectedCategories` array in the global state to include that category (if selectedCategories is not already full/length 3). 
+
+Once the user selects all the categories that they are interested in, they can click the "Start Quiz" button to begin the quiz.
+
+**After this step, this is what's in the following: **
+- `selectedCategories`: An array of the user's selected categories (length 1-3)
+- `quizStarted`: Set to true once the user clicks "Start Quiz"
+- `currentCategoryIndex`: Set to 0 (first category)
+- `currentQuestionIndex`: Set to 0 (first question in that category)
+  
+## Step 2: User Takes the Quiz
+
+The user is then taken to the [QuizPage.js](../Pages/QuizPage.js) page where they are asked questions based on their selected categories.
 
