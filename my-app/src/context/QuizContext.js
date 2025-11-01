@@ -4,21 +4,19 @@ import Papa from 'papaparse'; // CSV parsing library - converts spreadsheet data
 import { ALL_TAGS } from '../data/tags'; // Import tag definitions from another file
 import '../types.js'
 
-// Create React context - think of this as creating a "global storage box" for quiz data
-// Any component in your app can access data from this box
+// Create React context - a "global storage box" for quiz data
 const QuizContext = createContext();
 
 // Define the initial state - this is what your quiz data looks like when the app first starts
 const initialState = {
-  clubData: [], // Will store club information loaded from CSV file
+  clubData: [], // All of the loaded in club data from the CSV
   
-  // Create empty arrays for each numbered tag (1, 2, 3, etc.)
   // Object.keys(ALL_TAGS) gets numbered keys like ["1", "2", "3", ...]
   // .reduce() converts this array into an object like: { "1": [], "2": [], "3": [] }
   // Each empty array will later store the user's quiz answers for that specific tag ID
   userTags: Object.keys(ALL_TAGS).reduce((acc, tagId) => {
     acc[tagId] = []; // Create empty array for this tag ID
-    return acc; // Return the building object
+    return acc; 
   }, {}), // Start with empty object {}
   
   selectedCategories: [], // Which categories user picked (max 3 allowed)
@@ -36,7 +34,6 @@ const initialState = {
 
 /**
  * REDUCER: The "command processor" for updating quiz data
- * Think of this like a vending machine - you put in a command (action) and get back new state
  * state = current quiz data, action = command object like { type: 'START_QUIZ' }
  * 
  * Handles logic for state updates
@@ -159,7 +156,6 @@ function quizReducer(state, action) {
 }
 
 /**
- * QUIZ PROVIDER: The "data manager" component that wraps your entire app
  * Initially fetches club data and provides the quiz with state and dispatch functions to all descendant components
  * @component
  * 
@@ -170,18 +166,16 @@ function quizReducer(state, action) {
  *  A context provider wrapping 'props.children'
  */
 export function QuizProvider({ children }) {
-  // Set up the state management system
   // state = current quiz data, dispatch = function to send commands to reducer
   const [state, dispatch] = useReducer(quizReducer, initialState);
 
-  // useEffect runs when component first appears - perfect for loading data
+  // useEffect runs when component first appears
   useEffect(() => {
     // Download the CSV file from the public folder
     fetch('./csv_folder/44TagsWithIdentity.csv')
-      .then(response => response.text()) // Convert downloaded file to text
+      .then(response => response.text())
       .then(text => {
-        // Parse CSV text into JavaScript arrays using Papa Parse library
-        // Since you confirmed all data is complete, use strict parsing settings
+        // Parse CSV text using Papa Parse library
         const parsed = Papa.parse(text, {
           skipEmptyLines: true, // Skip completely empty lines
           header: false, // We handle the header manually
@@ -195,14 +189,12 @@ export function QuizProvider({ children }) {
         });
         
         const rows = parsed.data;
-        
         if (rows.length === 0) {
           throw new Error('CSV file is empty');
         }
         
         const header = rows[0]; // First row contains column names
         
-        // Create a lookup table so we can find columns by name instead of number
         // Converts ["Club", "Tags", "Description"] into {"Club": 0, "Tags": 1, "Description": 2}
         const headerMapping = {};
         header.forEach((colName, index) => {
@@ -210,7 +202,6 @@ export function QuizProvider({ children }) {
         });
         
         // Send the parsed data to our reducer to store in state
-        // This triggers the 'SET_CLUB_DATA' case in our reducer above
         dispatch({ 
           type: 'SET_CLUB_DATA', 
           payload: { headerMapping, rows } 
@@ -219,16 +210,15 @@ export function QuizProvider({ children }) {
       .catch(error => {
         // If anything goes wrong (file not found, parsing error, etc.)
         console.error('Error loading club data:', error);
-        // Send error to reducer to store in state
+        
         dispatch({ 
           type: 'SET_ERROR', 
           payload: 'Failed to load club data' 
         });
       });
-  }, []); // Empty array means "only run this once when component first loads"
+  }, []);
 
   // Return the Provider component that shares our state with all child components
-  // Think of this as setting up a Wi-Fi network that broadcasts quiz data
   return (
     <QuizContext.Provider value={{ state, dispatch }}>
       {children} {/* All the components inside this provider can access state & dispatch */}
@@ -237,18 +227,14 @@ export function QuizProvider({ children }) {
 }
 
 /**
- * CUSTOM HOOK: A convenient way for components to access quiz data
- * Instead of components calling useContext(QuizContext) directly, they call useQuiz()
- * Checks if there is a Quiz Context and returns it
+ * Checks if there is a QuizContext and returns it
  * @returns {QuizContextValue} 
- * The quiz context object that contains current state and dispatch 
  */
 export function useQuiz() {
-  // Get the quiz data from the nearest QuizProvider up the component tree
+  // Get the quiz data 
   const context = useContext(QuizContext);
   
-  // If this hook is called outside of a QuizProvider, throw helpful error
-  // This prevents confusing bugs where components can't find quiz data
+  // If hook is called outside of a QuizProvider, throw error
   if (!context) {
     throw new Error('useQuiz must be used within a QuizProvider');
   }
@@ -258,14 +244,14 @@ export function useQuiz() {
 }
 
 /* 
-HOW TO USE THIS IN OTHER COMPONENTS:
+HOW WE USE THIS IN OTHER COMPONENTS:
 
-1. Wrap your app with QuizProvider:
+1. Wrap App.js with QuizProvider:
    <QuizProvider>
      <App />
    </QuizProvider>
 
-2. In any component, access quiz data:
+2. Then, in any component, we can access quiz data:
    const { state, dispatch } = useQuiz();
    
 3. Read data:

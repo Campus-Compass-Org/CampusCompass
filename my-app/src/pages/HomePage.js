@@ -15,8 +15,6 @@ import './HomePage.css';
  * HomePage Component
  * 
  * This is the main landing page where users start their club-finding journey.
- * Think of this like the front door of our app - users pick their interests here
- * before taking the quiz.
  * 
  * What this page does:
  * - Shows all available categories (like Sports, Academic, Arts, etc.)
@@ -29,7 +27,7 @@ import './HomePage.css';
  * @returns {JSX.Element} The rendered HomePage component (JSX is like HTML but in JavaScript)
  */
 function HomePage() {
-  // HOOKS: These are special React functions that let us use state and other features
+  // HOOKS: React functions that let us use state and other features
   
   // useQuiz() connects us to our global quiz data storage
   // 'state' = current quiz data (like what categories are selected)
