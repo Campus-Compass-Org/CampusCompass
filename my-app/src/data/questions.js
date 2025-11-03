@@ -27,7 +27,7 @@ export const CATEGORY_QUESTIONS = {
 
   "Sports & Recreation": [
     ["Would you join structured group fitness classes (ie. pilates, yoga)?", [17, 20, 25]],
-    ["Are you interested in outdoor trips like hikes, camping, or stargazing?", [19, 17, 25, 20, 43]],
+    ["Are you interested in outdoor trips like hikes or camping?", [19, 17, 25, 20, 43]],
     ["Are you interested in joining a competitive sports team?", [18, 2, 17]],
     ["Would you join an eSports team or club?", [44, 24, 25, 2]],
     ["Are you interested in the strategy and management side of sports?", [18, 1, 38, 13, 40]],

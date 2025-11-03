@@ -32,9 +32,7 @@ import { ONLY_IDENTITIES } from '../data/identity';
  *                                Example: { "1": 0.67, "2": 0.5, "3": 2.0 }
  */
 export function calcUserTagScores(userTags) {
-  // STEP 1: Calculate raw averages for each tag
-  // This is like calculating your test average for each subject
-  
+  // STEP 1: Calculate raw averages for each tag  
   let rawAverages = {};
   
   // Loop through each tag (interest topic)
@@ -53,14 +51,14 @@ export function calcUserTagScores(userTags) {
   }
 
   // STEP 2: Apply special boosting rule
-  // If someone answered many questions about a topic AND got a perfect score, boost them!
-  
+  // If someone answered "yes" to a tag 3+ times (avg score of 1), boost them bcz they are clearly interested
+  // Boost means set their score for the tag to 2.0 instead of 1.0
   let finalScores = {};
   
   // Loop through each calculated average
   for (const tagnumber in rawAverages) {
     const avgTag = rawAverages[tagnumber];
-    let finalValue = avgTag; // Start with the average
+    let finalValue = avgTag; // Default final value to the average calculated above
     
     // BOOST RULE: Perfect score + many questions = extra boost
     // This rewards people who consistently love something
@@ -152,9 +150,8 @@ export function cosineSimilarity(vecA, vecB) {
  * This function filters out the user's identity responses to find relevant identities.
  * It removes any 'other' or null responses and returns a list of identities that can be used for
  * matchmaking.
- * It also expands the identities to include all relevant traits from the ONLY_IDENTITIES array.
  * @param {Array} selectedIdentities - Array of user's identity responses (e.g., ["man men", "Theatre Arts", "other"])
- * @returns {Array} - Array of all other ident
+ * @returns {Array} - Array of all relevant identities
  */
 
 export function getRelevantIdentities(selectedIdentities) {
@@ -165,7 +162,7 @@ export function getRelevantIdentities(selectedIdentities) {
   const relevantIdentities = startList.flatMap(identity => {
     // find the subwarray in ONLY_IDENTITIES that contains this identity
     const group = ONLY_IDENTITIES.find(arr => arr.includes(identity));
-    // if found, return all identities in that group; otherwise, just the identity itself
+    // if found, return all identities in that group; otherwise just return the identity itself
     return group ? group : [identity];
   });
 
@@ -176,19 +173,9 @@ export function getRelevantIdentities(selectedIdentities) {
 /**
  * keepColumnsAsArray - THE DATA FILTER
  * ====================================
- * 
- * This function is like using Excel's "filter columns" feature.
- * We have a huge spreadsheet of club data, but we only want certain columns.
- * 
  * What it does:
- * - Takes a 2D array (like a spreadsheet)
+ * - Takes a 2D array
  * - Keeps only the columns we care about
- * - Returns a smaller, focused dataset
- * 
- * Why we need this:
- * - The CSV has tons of columns (100+)
- * - We only need specific ones for our calculations
- * - This makes processing faster and cleaner
  * 
  * Example:
  * Input:  [["Club", "Link", "Sport", "Academic", "Other"], 
@@ -203,18 +190,11 @@ export function getRelevantIdentities(selectedIdentities) {
  */
 export function keepColumnsAsArray(data, columnsToKeep, mapping) {
   // STEP 1: Validate which columns actually exist in the CSV
-  // Filter out any columns that don't have a mapping (missing from CSV)
+  // Filter out any columnsToKeep that don't appear in the mapping
   const validColumns = columnsToKeep
-    .filter(col => {
-      // ignore column if it is 'other'
-      if (col === 'other') {
-        console.log(`Skipping 'other' column as it is not needed.`);
-        return false; // Skip this column
-      }
+    .filter(col => {      
       // Check if this column exists in our CSV
       const columnExists = mapping.hasOwnProperty(col);
-      
-      // Log warning for missing columns (helps with debugging)
       if (!columnExists) {
         console.warn(`Column "${col}" not found in CSV data. Skipping...`);
       }
@@ -222,7 +202,7 @@ export function keepColumnsAsArray(data, columnsToKeep, mapping) {
       return columnExists;
     });
   
-  // STEP 2: Process each row of the spreadsheet using only valid columns
+  // STEP 2: Return a new array containing data with only the valid columnsToKeep
   return data.map((row, rowIndex) =>
     validColumns.map(col => {
       const columnIndex = mapping[col]; // the column index in the CSV
@@ -238,22 +218,10 @@ export function keepColumnsAsArray(data, columnsToKeep, mapping) {
       return value !== undefined ? value : 0;
     })
   );
-  
-  // What this does step-by-step:
-  // 1. Validate that requested columns actually exist in the CSV
-  // 2. For each row in the data
-  // 3. For each valid column we want to keep
-  // 4. Look up the column's position using the mapping
-  // 5. Extract that data from the row (with safety checks)
-  // 6. Return the filtered row with only valid data
 }
 
 /**
- * rankClubsBySimilarity - The main club matching algorithm
- * 
- * This is the heart of the entire application! 🎯
- * It takes a user's preferences and finds the clubs that match them best.
- * Think of it like a dating app, but for clubs!
+ * Takes user preferences and finds the clubs that match them best.
  * 
  * How the magic happens:
  * 1. Take user's quiz results (their interest vector)
@@ -268,47 +236,42 @@ export function keepColumnsAsArray(data, columnsToKeep, mapping) {
  * - Similarity: How close these vectors are = how good the match is!
  * 
  * @param {Array} userVector - User's preference scores for the 40 interest tags (0-1 scale)
- * @param {Object} clubDataObj - Object containing club data and mappings
+ * @param {Object} clubDataObj - Object containing club data and mappings. 
+ *    Structure: { headerMapping: {"Club Name": 0, "links": 1, "Leadership": 2}, rows: [["Club Name", "links", "Leadership"],["Chess Club", "url1", 0.8]] }
  * @param {Array} userIdentityCols - User's identity responses (like major, year, etc.)
  * @returns {Array} - Top 10 club matches with similarity scores
  */
 export function rankClubsBySimilarity(userVector, clubDataObj, userIdentityCols) {
   // STEP 1: Process identity responses  
-  // Get the filtered valid identity responses (excluding null and 'other')
   // We ignore null and 'other' responses since they don't provide filtering value
+  // Also brings in the rest of the identities that the user did not select so that we can later
+  // assign them a score of 0 to indicate that the user is not related to that identity
   const identitiesToInclude = getRelevantIdentities(userIdentityCols);
 
   // STEP 2: Set up our data processing
   const { headerMapping, rows } = clubDataObj;
   // Define which columns we need from the club data
-  // "Club Name" and "links" for display, TAG_LIST for interests, identitiesToInclude for filtering
   const allCols = ["Club Name", "links", ...TAG_LIST, ...identitiesToInclude];
   
   // Filter the club data to only include the columns we need
-  const userFilteredData = keepColumnsAsArray(rows, allCols, headerMapping);
+  // slicing off the first row bcz its the header row (not actual data)
+  const userFilteredData = keepColumnsAsArray(rows.slice(1), allCols, headerMapping);
   
-
-  // STEP 3: Enhance the user vector with identity scores
-  
-  // Add a high score (2.0) for each identity characteristic the user selected, and 0 for the ones they didn't
-  // This boosts similarity for clubs that match the user's identity
+  // STEP 3: Add the idenntity scores to the user vector (right now it just contains their averages for interest tag scores)
+  // Add a 2.0 for each identity the user selected, and 0 for the ones they didn't
+  // This makes clubs that match the user's identities rank higher and those that don't rank lower
   for (let i = 0; i < identitiesToInclude.length; i++) {
-    if (userIdentityCols.includes(identitiesToInclude[i])) {
-      userVector.push(2.0);
+    const identity = identitiesToInclude[i];
+    if (userIdentityCols.includes(identity)) {
+      if (identity === "Greek") {
+        // SPECIAL CASE: Greek life gets a lower boost (1.0 instead of 2.0)
+        // This is because we noticed when this is set to 2.0, results are heavily skewed
+        userVector.push(1.0);
+      } else {
+        userVector.push(2.0);
+      }
     } else {
       userVector.push(0);
-    }
-  }
-
-  // Special case: Greek life gets a lower boost (1.0 instead of 2.0)
-  // This is because we noticed when this is set to 2.0, results are heavily skewed
-  if (userIdentityCols.includes("Greek")) {
-    // Find the correct index of "Greek" in the valid responses
-    const greekIndex = identitiesToInclude.indexOf("Greek");
-    if (greekIndex !== -1) {
-      // Greek is at TAG_LIST.length + greekIndex in the userVector
-      const greekVectorIndex = TAG_LIST.length + greekIndex;
-      userVector[greekVectorIndex] = 1.0;
     }
   }
   
@@ -325,7 +288,6 @@ export function rankClubsBySimilarity(userVector, clubDataObj, userIdentityCols)
   }
 
   // STEP 4: Calculate similarity for each club
-  
   let results = [];
 
   // Loop through each club (skip header row, so start at index 1)
@@ -389,32 +351,23 @@ export function rankClubsBySimilarity(userVector, clubDataObj, userIdentityCols)
   // Sort by similarity score (highest first)
   results.sort((a, b) => b.similarity - a.similarity);
   
-  // Return only the top 10 matches
+  // Return the top 25 matches
   return results.slice(0, 25);
 }
 
 /**
  * applyCategoryInterestScores - THE CATEGORY BOOSTER
  * ==================================================
- * 
  * This function gives extra credit to users for the categories they selected!
- * Think of it like getting bonus points on a test for your favorite subjects.
  * 
  * How it works:
- * 1. Look at which categories the user picked on the home page (like "Sports", "Academic")
+ * 1. Look at which top 3 categories the user picked on the home page (like "Sports", "Academic")
  * 2. For each category, add a bonus score to their preferences
  * 3. Selected categories get +1 (boost), unselected get 0 (neutral)
  * 
  * Why this matters:
  * - User explicitly said "I'm interested in Sports" by selecting that category
  * - Even if their quiz answers were mixed, we should boost sports-related matches
- * - This ensures their conscious choices influence the results
- * 
- * Example:
- * - User selected: ["Sports", "Academic"] 
- * - Sports gets +1 boost, Academic gets +1 boost
- * - Arts (not selected) gets 0 boost
- * - Result: User will see more sports and academic clubs in their matches
  * 
  * @param {Object} tempUserTags - Copy of user's quiz responses
  * @param {Array} selectedCategories - Categories user chose on home page
@@ -427,7 +380,6 @@ export function applyCategoryInterestScores(tempUserTags, selectedCategories) {
   // Loop through each category and apply appropriate score
   for (let categoryName of categoryKeys) {
     // Convert category name to its corresponding tag number
-    // Example: "Sports & Recreation" → tag number 18
     const catTagId = renameCategoryToNumber(categoryName);
     
     // Check if user selected this category
@@ -450,11 +402,11 @@ export function renameCategoryToNumber(categoryName) {
   if (categoryName === "Community Service & Advocacy") return 3; // Community Service is tag 3
   if (categoryName === "Arts & Culture") return 8; // Creative Expression is tag 8
   if (categoryName === "Sports & Recreation") return 18; // Physical Fitness is tag 18
-  if (categoryName === "Professional Development & Networking") return 2; // Professional Networking is tag 2
-  if (categoryName === "Technology & Engineering") return 29; // Technology & Computing is tag 29
-  if (categoryName === "Health & Wellness") return 22; // Health & Wellness is tag 22
-  if (categoryName === "Academic & Educational") return 3; // Academic Support is tag 3
+  if (categoryName === "Professional Development & Networking") return 13; // Professional Networking is tag 13
+  if (categoryName === "Technology & Engineering") return 7; // Technology & Computing is tag 7
+  if (categoryName === "Health & Wellness") return 20; // Health & Wellness is tag 20
+  if (categoryName === "Academic & Educational") return 22; // Academic Support is tag 22
   
   console.warn(`Unknown category: ${categoryName}, defaulting to Academic Support`);
-  return 3; // Default to Academic Support instead of Leadership
+  return null; // Default to Academic Support instead of Leadership
 }

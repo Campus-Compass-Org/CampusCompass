@@ -1,6 +1,4 @@
-// React is the main library - we need this in every component file
-// useState is a special hook that lets us store and update data in this component
-import React, { useState } from 'react';
+import { useState } from 'react';
 // useNavigate lets us programmatically move to different pages (like clicking a link in code)
 import { useNavigate } from 'react-router-dom';
 // Layout is our custom component that wraps the page with header/navigation
@@ -19,22 +17,12 @@ import './IdentityPage.css';
 import { ALL_TAGS } from '../data/tags';
 
 /**
- * IdentityPage Component
- * 
- * This is the second step in our quiz flow - OPTIONAL identity questions.
- * 
  * What this page does:
- * - Appears after the main quiz (about interests) is completed
  * - Asks optional demographic/identity questions (like year in school, major, etc.)
  * - Users can skip this entirely and go straight to results
  * - If they choose to answer, shows questions one-by-one with dropdown menus
  * - Combines identity answers with quiz answers for better club matching
- * - Takes users to final results page when done
- * 
- * Why it's useful:
- * - Some clubs are specific to certain groups (like "Freshman Orientation Club")
- * - Identity info helps filter clubs that are relevant to the user
- * - Makes recommendations more personalized and accurate
+ * - Computes final results page when done
  * 
  * Flow diagram:
  * 1. Show choice: "Answer identity questions?" or "Skip to results"
@@ -44,38 +32,29 @@ import { ALL_TAGS } from '../data/tags';
  * @returns {JSX.Element} The rendered IdentityPage component (JSX is like HTML but in JavaScript)
  */
 function IdentityPage() {
-  // HOOKS: These are special React functions that let us use state and other features
-  
   // useQuiz() connects us to our global quiz data storage
   // 'state' = current quiz data (like what answers they've given)
   // 'dispatch' = function to update/change the quiz data
   const { state, dispatch } = useQuiz();
   
-  // useNavigate() gives us a function to move between pages programmatically
   const navigate = useNavigate();
   
-  // LOCAL STATE: Data that only this component needs to track
   // selectedOption tracks what the user picked in the current dropdown
   // starts as null (nothing selected), updates when they choose something
   const [selectedOption, setSelectedOption] = useState(null);
 
-  // ROUTE PROTECTION: Make sure user should be on this page
   // Only allow access if they completed the main survey
   if (!state.surveyComplete) {
     navigate('/'); // Send them back to home page if they shouldn't be here
-    return null; // Don't render anything while navigating
+    return null; 
   }
 
-  // DATA PREPARATION: Get the current question to display
   // IDENTITY_QUESTIONS["Identity"] gives us an array of all identity questions
   const questionsForIdentity = IDENTITY_QUESTIONS["Identity"];
-  // Get the specific question we're currently asking (based on currentQuestionIndex)
+  // Get the specific question we're currently asking
   const currentQuestion = questionsForIdentity[state.currentQuestionIndex];
-
-  // EVENT HANDLERS: These are functions that run when user interacts with the page
   
   /**
-   * Handles when user clicks "Skip to results"
    * Skips all identity questions and goes straight to calculating final results
    * 
    * What happens:
@@ -88,12 +67,10 @@ function IdentityPage() {
   };
 
   /**
-   * Handles when user clicks "Yes, let's improve my matches"
    * Starts the identity question flow
    * 
    * What happens:
    * - Updates global state to show identity questions interface
-   * - Page will re-render and show the first identity question
    */
   const handleStartIdentity = () => {
     dispatch({ type: 'SET_SHOW_IDENTITY_QUESTIONS', payload: true });
@@ -101,10 +78,9 @@ function IdentityPage() {
 
   /**
    * Handles when user clicks "Next Question" or "Get My Results"
-   * Records their current answer and either shows next question or finishes
    * 
    * What happens:
-   * 1. Gets what they selected in the dropdown (or 'other' if nothing selected)
+   * 1. Gets what they selected in the dropdown
    * 2. Saves that answer to our global state
    * 3. Checks if this was the last question
    *    - If last question: calculate final results and go to results page
@@ -117,7 +93,6 @@ function IdentityPage() {
     // Check if this was the last identity question
     if (state.currentQuestionIndex >= questionsForIdentity.length - 1) {
       // All identity questions answered - calculate final results
-      // Create array of all their answers (including the one they just gave)
       const allResponses = [...state.userIdentityResponses, value];
       finalizeScoresAndComputeClubs(allResponses);
     } else {
@@ -125,56 +100,48 @@ function IdentityPage() {
       dispatch({ type: 'ADD_IDENTITY_RESPONSE', payload: value });
       // Move to next identity question
       dispatch({ type: 'NEXT_QUESTION' });
-      setSelectedOption(null); // Reset dropdown to show placeholder again
+      setSelectedOption(null); // Reset selectedOption for next question
     }
   };
 
   /**
-   * THE BIG CALCULATION FUNCTION: This is where the magic happens!
    * 
    * This function takes all the user's answers and figures out which clubs they'd like best.
    * It's like a matchmaking algorithm for clubs!
    * 
    * What it does step-by-step:
-   * 1. Takes their quiz answers (tags) and identity answers
-   * 2. Boosts scores for categories they said they were interested in
-   * 3. Averages out their answers to get final preference scores
-   * 4. Compares their preferences to every club's characteristics
-   * 5. Finds the clubs most similar to what they want
-   * 6. Filters clubs based on identity (if they answered those questions)
-   * 7. Gives back the top 10 best matches
-   * 8. Takes them to the results page to see their matches
-   * 
+   * 1. Takes their quiz answers (interest) and identity answers
+   * 2. Boosts scores for THE CATEGORIES they said they were interested in
+   * 3. Averages out their answers (array of 1s and 0s indicating responses) to get final score for each tag
+   * 4. Finds the clubs most similar to what they want
+   * 5. Filters clubs based on identity (if they answered those questions)
+   * 6. Gives back the top 10 best matches
+   * 7. Takes them to the results page to see their matches
+   *
    * @param {Array} identityResponses - Array of user's identity question answers (optional)
    */
   const finalizeScoresAndComputeClubs = (identityResponses = []) => {
     // STEP 1: Make a safe copy of user's quiz answers so we don't accidentally change the original
-    // JSON.parse(JSON.stringify()) is a common trick to "deep copy" complex data
     let tempUserTags = JSON.parse(JSON.stringify(state.userTags));
     
-    // STEP 2: Boost scores for categories they said they were interested in
-    // If they selected "Sports" category, boost all sports-related tag scores
+    // STEP 2: Add the value "1" to the tag arrays associated with the categories the user selected
+    // When we take the average later, this boosts those tags higher
     tempUserTags = applyCategoryInterestScores(tempUserTags, state.selectedCategories);
     
     // STEP 3: Calculate final scores for each tag
-    // Users might have answered multiple questions about the same topic
-    // This averages those answers to get one final score per topic
+    // This averages the answers for each tag to get one final score per tag, as well as applying any boosts
     const finalScores = calcUserTagScores(tempUserTags);
 
-    // STEP 4: Build the user vector (a fancy way to represent their preferences)
-    // Think of this like a report card with 40 different subjects
-    // Each number represents how much they like that type of activity (0-1 scale)
+    // STEP 4: Build the user vector of their preferences for each of the 40 interest tags
     const userVector = [];
-    // NOTE: Tag IDs start at 1, not 0 (this matches our data structure in ALL_TAGS)
     // We loop from 1 to length of ALL_TAGS because that's how the tags are numbered in our system
     for (let tagId = 1; tagId <= Object.keys(ALL_TAGS).length; tagId++) {
       // JavaScript automatically converts the integer 1 to the string "1" for object property access (automatic type coercion)
-      userVector.push(finalScores[tagId]); // Use their score, or 0 if they never answered about this topic
+      userVector.push(finalScores[tagId]);
     }
 
     // STEP 5: Find the best matching clubs!
-    // This function compares the user's preferences to every club's characteristics
-    // and finds the ones that are most similar (using math called "cosine similarity")
+    // Finds club vectors that are most similar to user vector (using "cosine similarity")
     const topTen = rankClubsBySimilarity(userVector, state.clubData, identityResponses);
     
     // STEP 6: Save the results and take them to see their matches
@@ -182,8 +149,6 @@ function IdentityPage() {
     dispatch({ type: 'COMPLETE_IDENTITY' }); // Mark identity phase as complete
     navigate('/results'); // Go to results page to show their matches
   };
-
-  // CONDITIONAL RENDERING: Show different screens based on current state
   
   // SCREEN 1: Initial choice screen - "Do you want to answer identity questions?"
   // This shows when showIdentityQuestions is false (the default)
@@ -216,15 +181,11 @@ function IdentityPage() {
     );
   }
 
-  // SCREEN 2: Identity questions interface
   // This shows when user chose "Yes" to answering identity questions
   return (
     <Layout>
-      {/* Layout wraps our content with the header/navigation */}
-      
       {/* 
         PROGRESS BAR: Visual indicator of how far through questions they are
-        Uses inline styles (style={{...}}) to dynamically set the width
         Math: (current question number / total questions) * 100 = percentage complete
       */}
       <div className="progress-bar">
@@ -235,10 +196,7 @@ function IdentityPage() {
       </div>
       
       <div className="question-block">
-        {/* 
-          QUESTION HEADER: Shows title and current progress
-          Example: "Identity Questions (2 of 5)"
-        */}
+        {/* QUESTION HEADER: Shows title and current progress */}
         <h2 className="category-name">
           Identity Questions 
           <span className="question-counter">
@@ -246,31 +204,26 @@ function IdentityPage() {
           </span>
         </h2>
         
-        {/* 
-          CURRENT QUESTION: Display the actual question text
-        */}
+        {/* CURRENT QUESTION: Display the actual question */}
         <h3 className="subcategory-question">{currentQuestion}</h3>
         
         {/* 
           DROPDOWN MENU: Where user selects their answer
           This uses our custom Dropdown component with simple configuration
-          All styling is handled by regular CSS classes in IdentityPage.css
         */}
         <div className="dropdown-container">
           <Dropdown
-            options={IDENTITY_OPTIONS[currentQuestion]} // The available answers for this question
-            onChange={(option) => setSelectedOption(option)} // Function to run when they pick something
-            value={selectedOption} // What's currently selected (controlled component)
-            placeholder="Select an option..." // Text shown when nothing is selected
-            className="identity-dropdown" // CSS class for styling
+            options={IDENTITY_OPTIONS[currentQuestion]}
+            onChange={(option) => setSelectedOption(option)}
+            value={selectedOption}
+            placeholder="Select an option..."
+            className="identity-dropdown" 
             isSearchable // Allow typing to filter options
           />
         </div>
         
         {/* 
           NEXT/COMPLETE BUTTON: Advances to next question or finishes
-          - Disabled if nothing is selected (can't proceed without an answer)
-          - Text changes on last question: "Next Question" vs "Get My Results"
         */}
         <button 
           className="next-button"
