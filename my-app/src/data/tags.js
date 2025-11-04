@@ -47,11 +47,11 @@ export const ALL_TAGS = {
   41: ["Analytics", 41],
   42: ["Robotics & AI", 42],
   43: ["Space & Astronomy", 43],
-  44: ["Gaming & eSports", 44]
+  44: ["Gaming & eSports", 44],
 };
 
 /**
  * TAG_LIST
  * A simple list of tag names corresponding to the keys in ALL_TAGS.
  */
-export const TAG_LIST = Object.values(ALL_TAGS).map(tag => tag[0]);
+export const TAG_LIST = Object.values(ALL_TAGS).map((tag) => tag[0]);
