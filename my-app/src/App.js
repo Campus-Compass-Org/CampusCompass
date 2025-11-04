@@ -1,16 +1,15 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { QuizProvider } from './context/QuizContext';
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { QuizProvider } from "./context/QuizContext";
 
 // Page imports
-import HomePage from './pages/HomePage';
-import QuizPage from './pages/QuizPage';
-import IdentityPage from './pages/IdentityPage';
-import ResultsPage from './pages/ResultsPage';
-import CategoriesPage from './pages/CategoriesPage';
-import CategoryPage from './pages/CategoryPage';
+import HomePage from "./pages/HomePage";
+import QuizPage from "./pages/QuizPage";
+import IdentityPage from "./pages/IdentityPage";
+import ResultsPage from "./pages/ResultsPage";
+import CategoriesPage from "./pages/CategoriesPage";
+import CategoryPage from "./pages/CategoryPage";
 
-import './styles/global.css';
+import "./styles/global.css";
 
 function App() {
   return (
@@ -18,7 +17,7 @@ function App() {
       <Router
         future={{
           v7_startTransition: true,
-          v7_relativeSplatPath: true
+          v7_relativeSplatPath: true,
         }}
       >
         <Routes>
