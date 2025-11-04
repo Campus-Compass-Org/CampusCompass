@@ -5,7 +5,7 @@ from sklearn import preprocessing
 
 DEVICE = "mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"
 model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
-df = pd.read_csv("NicosScrapedData.csv")
+df = pd.read_csv("club_csv_datasheets/NicosScrapedData.csv")
 
 name_desc = df["Club Name"] + " " + df["Description Excerpt"]
 
