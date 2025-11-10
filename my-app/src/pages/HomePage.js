@@ -9,8 +9,6 @@ import { CATEGORY_QUESTIONS } from "../data/questions";
 // Import the CSS styles for this specific page
 import "./HomePage.css";
 
-// import TestSupabase from '../components/testsupabase';
-
 /**
  * HomePage Component
  *
@@ -74,7 +72,6 @@ function HomePage() {
   return (
     <Layout>
       {/* Layout wraps our content with the header/navigation */}
-      {/* <TestSupabase /> */}  {/* Testing that Supabase Connects properly */}
       <h2 className="survey-title">
         Select up to 3 categories you're interested in
       </h2>
