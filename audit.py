@@ -1,3 +1,23 @@
+"""
+audit.py
+--------
+This script audits tag and question consistency across the Campus Compass quiz system.
+
+Core Functions:
+- Checks that all tags from ALL_TAGS appear at least 3 times across CATEGORY_QUESTIONS
+- Detects missing, duplicate, or underrepresented tags
+- Reports per-tag usage counts and optionally outputs category/question mappings
+
+Purpose:
+Maintains quiz balance and ensures each interest tag has sufficient representation 
+throughout the quiz flow. This prevents skewed scoring and ensures accurate 
+boost weighting in the matching algorithm.
+
+Usage:
+Run periodically after updating CATEGORY_QUESTIONS to confirm proper coverage.
+"""
+
+
 import pandas as pd
 
 # === 1️⃣ Load your latest normalized CSV ===
