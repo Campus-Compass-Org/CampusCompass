@@ -162,7 +162,7 @@ export function getRelevantIdentities(selectedIdentities) {
 
   // get all other valid identities in that same question
   const relevantIdentities = startList.flatMap((identity) => {
-    // find the subwarray in ONLY_IDENTITIES that contains this identity
+    // find the subwary in ONLY_IDENTITIES that contains this identity
     const group = ONLY_IDENTITIES.find((arr) => arr.includes(identity));
     // if found, return all identities in that group; otherwise just return the identity itself
     return group ? group : [identity];
@@ -246,6 +246,9 @@ export function rankClubsBySimilarity(
   clubDataObj,
   userIdentityCols
 ) {
+  // Create a mutable copy of the userVector to avoid modifying the original array
+  const mutableUserVector = [...userVector];
+
   // STEP 1: Process identity responses
   // We ignore null and 'other' responses since they don't provide filtering value
   // Also brings in the rest of the identities that the user did not select so that we can later
@@ -274,24 +277,24 @@ export function rankClubsBySimilarity(
       if (identity === "Greek") {
         // SPECIAL CASE: Greek life gets a lower boost (1.0 instead of 2.0)
         // This is because we noticed when this is set to 2.0, results are heavily skewed
-        userVector.push(1.0);
+        mutableUserVector.push(1.0);
       } else {
-        userVector.push(2.0);
+        mutableUserVector.push(2.0);
       }
     } else {
-      userVector.push(0);
+      mutableUserVector.push(0);
     }
   }
 
   // Debug logging to help understand what's happening
-  console.log("User Vector:", userVector);
+  console.log("User Vector:", mutableUserVector);
   console.log("User Identity Columns:", userIdentityCols);
   console.log("Columns to Keep:", allCols);
 
   // List tag name and associated value for it:
-  for (let i = 0; i < userVector.length; i++) {
+  for (let i = 0; i < mutableUserVector.length; i++) {
     const tagName = allCols[i + 2];
-    const tagValue = userVector[i];
+    const tagValue = mutableUserVector[i];
     console.log(`Tag: ${tagName}, Value: ${tagValue}`);
   }
 
@@ -332,15 +335,15 @@ export function rankClubsBySimilarity(
     });
 
     // Ensure vectors have the same length
-    if (clubVector.length !== userVector.length) {
+    if (clubVector.length !== mutableUserVector.length) {
       console.warn(
-        `Vector length mismatch for club "${clubName}": expected ${userVector.length}, got ${clubVector.length}`
+        `Vector length mismatch for club "${clubName}": expected ${mutableUserVector.length}, got ${clubVector.length}`
       );
       continue;
     }
 
     // THE MAGIC MOMENT: Calculate how similar this club is to the user
-    const categorySimilarity = cosineSimilarity(userVector, clubVector);
+    const categorySimilarity = cosineSimilarity(mutableUserVector, clubVector);
 
     // Skip clubs with invalid similarity scores
     if (isNaN(categorySimilarity) || categorySimilarity < 0) {
