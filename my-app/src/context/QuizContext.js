@@ -24,6 +24,7 @@ const initialState = {
   currentCategoryIndex: 0, // Which category we're currently asking about (0 = first category)
   currentQuestionIndex: 0, // Which question within current category (0 = first question)
   topClubs: [], // Final club recommendations calculated from user answers
+  topClubsWithoutIdentity: [], // For comparison: recommendations without identity answers
   quizStarted: false, // Has user started taking the quiz yet?
   surveyComplete: false, // Has user finished answering tag questions?
   identityCompleted: false, // Has user finished identity questions?
@@ -142,6 +143,10 @@ function quizReducer(state, action) {
     // COMMAND: "Here are the calculated club recommendations"
     case "SET_TOP_CLUBS":
       return { ...state, topClubs: action.payload };
+
+    // COMMAND: "Here are the recommendations calculated without identity answers"
+    case "SET_TOP_CLUBS_WITHOUT_IDENTITY":
+      return { ...state, topClubsWithoutIdentity: action.payload };
 
     // COMMAND: "Reset everything to start over (but keep club data)"
     case "RESET_QUIZ":

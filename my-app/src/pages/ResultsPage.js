@@ -6,6 +6,7 @@ import Layout from "../components/Layout";
 import { useQuiz } from "../context/QuizContext";
 // Import the CSS styles for this specific page
 import "./ResultsPage.css";
+import { useEffect, useState } from "react";
 
 /**
  * What this page does:
@@ -21,8 +22,19 @@ function ResultsPage() {
   // 'state' = current quiz data (like the calculated club matches)
   // 'dispatch' = function to update/change the quiz data
   const { state, dispatch } = useQuiz();
+  const [showWithIdentity, setShowWithIdentity] = useState(true);
 
   const navigate = useNavigate();
+
+  useEffect(() => {
+    console.log("Top clubs with identity questions:", state.topClubs);
+    if (state.topClubsWithoutIdentity.length > 0) {
+      console.log(
+        "Top clubs without identity questions:",
+        state.topClubsWithoutIdentity
+      );
+    }
+  }, [state.topClubs, state.topClubsWithoutIdentity]);
 
   // Only allow access if they completed both the quiz AND identity phase
   // Also make sure we actually have results to show them
@@ -30,6 +42,12 @@ function ResultsPage() {
     navigate("/"); // Send them back to home page if they shouldn't be here
     return null; // Don't render anything while navigating
   }
+
+  // Determine which list of clubs to display based on the toggle state
+  const clubsToShow =
+    showWithIdentity || state.topClubsWithoutIdentity.length === 0
+      ? state.topClubs
+      : state.topClubsWithoutIdentity;
 
   /**
    * Handles when user clicks "Retake Quiz"
@@ -83,6 +101,21 @@ function ResultsPage() {
           </button>
         </div>
 
+        {/* Only show the toggle if the user answered identity questions */}
+        {state.topClubsWithoutIdentity.length > 0 && (
+          <div className="toggle-container">
+            <span className="toggle-label">Include Identity Preferences</span>
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={showWithIdentity}
+                onChange={() => setShowWithIdentity(!showWithIdentity)}
+              />
+              <span className="slider round"></span>
+            </label>
+          </div>
+        )}
+
         <div className="club-list">
           {/* 
             MAP FUNCTION: Loop through each recommended club and create a card for it
@@ -94,7 +127,7 @@ function ResultsPage() {
               ...
             ]
           */}
-          {state.topClubs.map((club, index) => (
+          {clubsToShow.map((club, index) => (
             <div key={index} className="club-item">
               <div className="club-rank">#{index + 1}</div>
 
