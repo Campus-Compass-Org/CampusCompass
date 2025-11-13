@@ -6,4 +6,11 @@ env/
 myenv/
 /node_modules
 /build
+
+# Environment variables - NEVER commit these!
+.env
+.env.local
+.env*.local
+
+# OS files
 .DS_Store

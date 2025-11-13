@@ -6,31 +6,6 @@ import { CATEGORY_QUESTIONS } from "../data/questions";
 import { ONLY_IDENTITIES } from "../data/identity";
 
 /**
- * Campus Compass Club Matching Engine
- * ===================================
- * This module powers the recommendation system that matches students to clubs
- * based on quiz answers, interests, and identities.
- *
- * High-Level Flow:
- * 1. calcUserTagScores() – Converts quiz answers into weighted tag scores (user vector)
- * 2. rankClubsBySimilarity() – Compares the user vector to each club vector using cosine similarity
- * 3. Filters & Weighting:
- *    - Requires enough overlap in primary interest categories
- *    - Uses a 70% (interest) / 30% (identity) weighting scheme
- *    - Applies boosts for categories explicitly chosen by the user
- * 4. Outputs the top-ranked clubs sorted by similarity score
- *
- * Core Concepts:
- * - Cosine similarity measures how aligned two multidimensional vectors are
- * - Identity vectors add personalized context without dominating interests
- * - Category filtering ensures recommendations stay relevant and meaningful
- *
- * Result:
- * Produces a ranked list of clubs that best fit the user's expressed interests,
- * balancing topic similarity, category alignment, and identity relevance.
- */
-
-/**
  * calcUserTagScores - THE SCORE CALCULATOR
  * ==========================================
  *
@@ -58,8 +33,6 @@ import { ONLY_IDENTITIES } from "../data/identity";
  */
 export function calcUserTagScores(userTags) {
   // STEP 1: Calculate raw averages for each tag
-  // This is like calculating your test average for each subject
-
   let rawAverages = {};
 
   // Loop through each tag (interest topic)
@@ -85,7 +58,7 @@ export function calcUserTagScores(userTags) {
   // Loop through each calculated average
   for (const tagnumber in rawAverages) {
     const avgTag = rawAverages[tagnumber];
-    let finalValue = avgTag; // Start with the average
+    let finalValue = avgTag; // Default final value to the average calculated above
 
     // BOOST RULE: Perfect score + many questions = extra boost
     // This rewards people who consistently love something
@@ -191,7 +164,7 @@ export function getRelevantIdentities(selectedIdentities) {
   const relevantIdentities = startList.flatMap((identity) => {
     // find the subwarray in ONLY_IDENTITIES that contains this identity
     const group = ONLY_IDENTITIES.find((arr) => arr.includes(identity));
-    // if found, return all identities in that group; otherwise, just the identity itself
+    // if found, return all identities in that group; otherwise just return the identity itself
     return group ? group : [identity];
   });
 
@@ -208,12 +181,6 @@ export function getRelevantIdentities(selectedIdentities) {
  * What it does:
  * - Takes a 2D array
  * - Keeps only the columns we care about
- * - Returns a smaller, focused dataset
- *
- * Why we need this:
- * - The CSV has tons of columns (100+)
- * - We only need specific ones for our calculations
- * - This makes processing faster and cleaner
  *
  * Example:
  * Input:  [["Club", "Link", "Sport", "Academic", "Other"],
@@ -228,17 +195,10 @@ export function getRelevantIdentities(selectedIdentities) {
  */
 export function keepColumnsAsArray(data, columnsToKeep, mapping) {
   // STEP 1: Validate which columns actually exist in the CSV
-  // Filter out any columns that don't have a mapping (missing from CSV)
+  // Filter out any columnsToKeep that don't appear in the mapping
   const validColumns = columnsToKeep.filter((col) => {
-    // ignore column if it is 'other'
-    if (col === "other") {
-      console.log(`Skipping 'other' column as it is not needed.`);
-      return false; // Skip this column
-    }
     // Check if this column exists in our CSV
     const columnExists = mapping.hasOwnProperty(col);
-
-    // Log warning for missing columns (helps with debugging)
     if (!columnExists) {
       console.warn(`Column "${col}" not found in CSV data. Skipping...`);
     }
@@ -246,7 +206,7 @@ export function keepColumnsAsArray(data, columnsToKeep, mapping) {
     return columnExists;
   });
 
-  // STEP 2: Process each row of the spreadsheet using only valid columns
+  // STEP 2: Return a new array containing data with only the valid columnsToKeep
   return data.map((row, rowIndex) =>
     validColumns.map((col) => {
       const columnIndex = mapping[col]; // the column index in the CSV
@@ -273,32 +233,23 @@ export function keepColumnsAsArray(data, columnsToKeep, mapping) {
 }
 
 /**
- * rankClubsBySimilarity - The main club matching algorithm
- *
- * This is the heart of the entire application! 🎯
- * It takes a user's preferences and finds the clubs that match them best.
- * Think of it like a dating app, but for clubs!
+ * Takes user preferences and finds the clubs that match them best.
  *
  * How the magic happens:
  * 1. Take user's quiz results (their interest vector)
- * 2. Add their identity preferences to the vector (weighted at 1.0, reduced from 2.0)
- * 3. Filter clubs with minimum interest overlap threshold (prevents false positives)
- * 4. Calculate separate similarity scores for interests (70% weight) and identity (30% weight)
- * 5. Combine scores and rank clubs by weighted similarity
- * 6. Return the top matches
- *
- * Improvements:
- * - Interest overlap threshold ensures clubs share relevant interests before matching
- * - Separate scoring prevents identity from overpowering interest-based matching
- * - Weighted combination (70% interests, 30% identity) prioritizes interests while considering identity
+ * 2. Add their identity preferences to the vector
+ * 3. Compare their vector to every club's vector
+ * 4. Rank clubs by similarity score
+ * 5. Return the top 10 matches
  *
  * The vectors explained:
  * - User vector: [0.8, 0.2, 0.9, ...] = "I love leadership, don't like sports, love creativity..."
  * - Club vector: [0.7, 0.1, 0.8, ...] = "This club is leadership-focused, not sports-related, very creative..."
  * - Similarity: How close these vectors are = how good the match is!
  *
- * @param {Array} userVector - User's preference scores for interest tags (0-2 scale) plus identity scores
- * @param {Object} clubDataObj - Object containing club data and mappings
+ * @param {Array} userVector - User's preference scores for the 40 interest tags (0-1 scale)
+ * @param {Object} clubDataObj - Object containing club data and mappings.
+ *    Structure: { headerMapping: {"Club Name": 0, "links": 1, "Leadership": 2}, rows: [["Club Name", "links", "Leadership"],["Chess Club", "url1", 0.8]] }
  * @param {Array} userIdentityCols - User's identity responses (like major, year, etc.)
  * @param {Array} selectedCategories - Categories user selected (optional, for category-specific filtering)
  * @returns {Array} - Top club matches with weighted similarity scores
@@ -306,11 +257,9 @@ export function keepColumnsAsArray(data, columnsToKeep, mapping) {
 export function rankClubsBySimilarity(
   userVector,
   clubDataObj,
-  userIdentityCols,
-  selectedCategories = []
+  userIdentityCols
 ) {
   // STEP 1: Process identity responses
-  // Get the filtered valid identity responses (excluding null and 'other')
   // We ignore null and 'other' responses since they don't provide filtering value
   // Also brings in the rest of the identities that the user did not select so that we can later
   // assign them a score of 0 to indicate that the user is not related to that identity
@@ -322,12 +271,16 @@ export function rankClubsBySimilarity(
   const allCols = ["Club Name", "links", ...TAG_LIST, ...identitiesToInclude];
 
   // Filter the club data to only include the columns we need
-  const userFilteredData = keepColumnsAsArray(rows, allCols, headerMapping);
+  // slicing off the first row bcz its the header row (not actual data)
+  const userFilteredData = keepColumnsAsArray(
+    rows.slice(1),
+    allCols,
+    headerMapping
+  );
 
-  // STEP 3: Enhance the user vector with identity scores
-
-  // Add a high score (1.0) for each identity characteristic the user selected, and 0 for the ones they didn't
-  // This boosts similarity for clubs that match the user's identity
+  // STEP 3: Add the idenntity scores to the user vector (right now it just contains their averages for interest tag scores)
+  // Add a 2.0 for each identity the user selected, and 0 for the ones they didn't
+  // This makes clubs that match the user's identities rank higher and those that don't rank lower
   for (let i = 0; i < identitiesToInclude.length; i++) {
     if (userIdentityCols.includes(identitiesToInclude[i])) {
       userVector.push(1.0);
@@ -392,160 +345,8 @@ export function rankClubsBySimilarity(
       continue;
     }
 
-    // STEP 4a: Check interest overlap threshold and separate scoring
-    // Split vectors into interest portions (first TAG_LIST.length elements) and identity portions (rest)
-    const numInterestTags = TAG_LIST.length;
-    const userInterestVector = userVector.slice(0, numInterestTags);
-    const clubInterestVector = clubVector.slice(0, numInterestTags);
-    const userIdentityVector = userVector.slice(numInterestTags);
-    const clubIdentityVector = clubVector.slice(numInterestTags);
-
-    // Calculate interest overlap (dot product of interest portions)
-    // This measures how many shared interests exist between user and club
-    let interestOverlap = 0;
-    for (let i = 0; i < numInterestTags; i++) {
-      interestOverlap += userInterestVector[i] * clubInterestVector[i];
-    }
-
-    // STEP 4b: Calculate separate similarity scores for interests and identity
-    // This gives explicit control over the balance between interests and identity matching
-    const interestSimilarity = cosineSimilarity(
-      userInterestVector,
-      clubInterestVector
-    );
-
-    // Only calculate identity similarity if identity vectors exist
-    let identitySimilarity = 0;
-    if (userIdentityVector.length > 0 && clubIdentityVector.length > 0) {
-      identitySimilarity = cosineSimilarity(
-        userIdentityVector,
-        clubIdentityVector
-      );
-    }
-
-    // STEP 4c: Apply multiple filtering thresholds to ensure quality matches
-
-    // Threshold 1: PRIMARY category tag matching (if categories were selected)
-    // This is the KEY fix - require strong matches in the PRIMARY tags of selected categories
-    // This prevents clubs from matching just because they share many generic tags
-    if (selectedCategories.length > 0) {
-      const primaryCategoryTagIds =
-        getPrimaryCategoryTagIds(selectedCategories);
-      let primaryCategoryMatch = 0;
-
-      // Check overlap in PRIMARY category tags only (e.g., tag 19 for Health, tag 20 for Sports, tag 47 for Academic)
-      let bestMatchStrength = 0;
-      let hasGoodMatch = false;
-      const tagMatches = []; // For debug output
-
-      for (const tagId of primaryCategoryTagIds) {
-        // Tag IDs are 1-indexed, so subtract 1 to get vector index
-        // Convert tagId to number in case Set contains string keys
-        const tagNum = typeof tagId === "string" ? parseInt(tagId) : tagId;
-        const tagIndex = tagNum - 1;
-        if (tagIndex >= 0 && tagIndex < numInterestTags) {
-          const userValue = userInterestVector[tagIndex];
-          const clubValue = clubInterestVector[tagIndex];
-          const matchStrength = userValue * clubValue;
-          primaryCategoryMatch += matchStrength;
-          bestMatchStrength = Math.max(bestMatchStrength, matchStrength);
-
-          // Store for debug
-          tagMatches.push(`tag${tagNum}:${matchStrength.toFixed(2)}`);
-
-          // Consider it a good match if:
-          // - User has interest (>= 0.3) AND club has meaningful relevance (>= 0.15)
-          // - OR match strength is decent (>= 0.15)
-          // This ensures clubs actually align with at least one selected category
-          if (
-            (userValue >= 0.3 && clubValue >= 0.15) ||
-            matchStrength >= 0.15
-          ) {
-            hasGoodMatch = true;
-          }
-        }
-      }
-
-      // REQUIREMENT: Must have meaningful match in at least ONE primary category tag
-      // This ensures clubs align with the core purpose of selected categories
-
-      // Debug logging for problematic clubs (show individual tag matches)
-      if (
-        clubName.includes("Archaeology") ||
-        clubName.includes("Real Estate") ||
-        clubName.includes("Republican")
-      ) {
-        console.log(
-          `DEBUG ${clubName}: primaryCategoryMatch=${primaryCategoryMatch.toFixed(
-            2
-          )}, bestMatchStrength=${bestMatchStrength.toFixed(
-            2
-          )}, hasGoodMatch=${hasGoodMatch}, tagMatches=[${tagMatches.join(
-            ", "
-          )}]`
-        );
-      }
-
-      // REQUIREMENT: Must have at least ONE decent match in a primary category tag
-      // This prevents clubs from matching purely on aggregated small overlaps
-      const MIN_BEST_MATCH = 0.15; // Must have at least one primary tag match >= 0.15
-
-      if (!hasGoodMatch && bestMatchStrength < MIN_BEST_MATCH) {
-        // Skip this club - doesn't have a meaningful match in ANY primary category tag
-        // Debug why it failed
-        if (
-          clubName.includes("Archaeology") ||
-          clubName.includes("Real Estate") ||
-          clubName.includes("Republican")
-        ) {
-          console.log(
-            `DEBUG FILTERED ${clubName}: hasGoodMatch=${hasGoodMatch}, bestMatchStrength=${bestMatchStrength.toFixed(
-              2
-            )}`
-          );
-        }
-        continue;
-      }
-    }
-
-    // Threshold 2: Minimum interest overlap (balanced to allow relevant matches)
-    // Requires meaningful shared interest activity before considering a match
-    const MIN_INTEREST_OVERLAP = 0.4;
-    if (interestOverlap < MIN_INTEREST_OVERLAP) {
-      // Skip this club - insufficient interest overlap
-      continue;
-    }
-
-    // Threshold 3: Minimum interest similarity (balanced requirement)
-    // Prevents clubs that only share minimal interests from ranking high
-    const MIN_INTEREST_SIMILARITY = 0.25;
-    if (interestSimilarity < MIN_INTEREST_SIMILARITY) {
-      // Skip this club - interest similarity too low
-      continue;
-    }
-
-    // Debug logging for final scores of problematic clubs
-    if (
-      clubName.includes("Archaeology") ||
-      clubName.includes("Real Estate") ||
-      clubName.includes("Republican")
-    ) {
-      console.log(
-        `DEBUG ${clubName} PASSED FILTERS: interestOverlap=${interestOverlap.toFixed(
-          2
-        )}, interestSimilarity=${interestSimilarity.toFixed(2)}`
-      );
-    }
-
-    // STEP 4d: Combine similarity scores with weighted average
-    // 70% weight on interests, 30% weight on identity
-    // This prioritizes interest-based matching while still considering identity alignment
-    const INTEREST_WEIGHT = 0.7;
-    const IDENTITY_WEIGHT = 0.3;
-    const categorySimilarity =
-      interestSimilarity * INTEREST_WEIGHT +
-      identitySimilarity * IDENTITY_WEIGHT;
-    const fullCosineSim = cosineSimilarity(userVector, clubVector);
+    // THE MAGIC MOMENT: Calculate how similar this club is to the user
+    const categorySimilarity = cosineSimilarity(userVector, clubVector);
 
     // Skip clubs with invalid similarity scores
     if (isNaN(categorySimilarity) || categorySimilarity < 0) {
@@ -554,7 +355,9 @@ export function rankClubsBySimilarity(
       );
       continue;
     }
-    results.push({ clubName, clubLink, similarity: fullCosineSim });
+
+    // Store the result with all the info we need
+    results.push({ clubName, clubLink, similarity: categorySimilarity });
   }
 
   // STEP 5: Sort and return best matches
@@ -568,7 +371,7 @@ export function rankClubsBySimilarity(
   // Sort by similarity score (highest first)
   results.sort((a, b) => b.similarity - a.similarity);
 
-  // Return only the top 10 matches
+  // Return the top 25 matches
   return results.slice(0, 25);
 }
 
@@ -577,7 +380,6 @@ export function rankClubsBySimilarity(
  * ==================================================
  *
  * This function gives extra credit to users for the categories they selected!
- * Think of it like getting bonus points on a test for your favorite subjects.
  *
  * How it works:
  * 1. Look at which top 3 categories the user picked on the home page (like "Sports", "Academic")
@@ -587,13 +389,6 @@ export function rankClubsBySimilarity(
  * Why this matters:
  * - User explicitly said "I'm interested in Sports" by selecting that category
  * - Even if their quiz answers were mixed, we should boost sports-related matches
- * - This ensures their conscious choices influence the results
- *
- * Example:
- * - User selected: ["Sports", "Academic"]
- * - Sports gets +1 boost, Academic gets +1 boost
- * - Arts (not selected) gets 0 boost
- * - Result: User will see more sports and academic clubs in their matches
  *
  * @param {Object} tempUserTags - Copy of user's quiz responses
  * @param {Array} selectedCategories - Categories user chose on home page
@@ -615,23 +410,6 @@ export function applyCategoryInterestScores(tempUserTags, selectedCategories) {
       // The boost is applied twice to emphasize the user's explicit category selection
       tempUserTags[catTagId].push(1);
       tempUserTags[catTagId].push(1);
-
-      // Additionally, calculate proportional boost based on number of questions in category
-      // This rewards categories with more questions (more detailed interests)
-      const questionsInCategory = CATEGORY_QUESTIONS[categoryName].length;
-      const proportionalBoost = Math.min(questionsInCategory * 0.1, 0.5); // Cap at 0.5 extra boost
-      if (proportionalBoost > 0 && tempUserTags[catTagId].length > 0) {
-        // Add proportional boost as additional "Yes" responses
-        const numBoosts = Math.floor(proportionalBoost * 10); // Convert to integer count
-        for (let i = 0; i < numBoosts; i++) {
-          tempUserTags[catTagId].push(1);
-        }
-      }
-      // Cap total boost to avoid overinflation
-      const MAX_TAG_BOOST = 2.0;
-      if (tempUserTags[catTagId].length > MAX_TAG_BOOST) {
-        tempUserTags[catTagId] = tempUserTags[catTagId].slice(0, MAX_TAG_BOOST);
-      }
     }
     // If they didn't select it, don't do anything special
   }

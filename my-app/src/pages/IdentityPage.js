@@ -148,13 +148,11 @@ function IdentityPage() {
     }
 
     // STEP 5: Find the best matching clubs!
-    // This function compares the user's preferences to every club's characteristics
-    // and finds the ones that are most similar (using math called "cosine similarity")
+    // Finds club vectors that are most similar to user vector (using "cosine similarity")
     const topTen = rankClubsBySimilarity(
       userVector,
       state.clubData,
-      identityResponses,
-      state.selectedCategories
+      identityResponses
     );
 
     // STEP 6: Save the results and take them to see their matches
