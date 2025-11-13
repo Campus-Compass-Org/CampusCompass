@@ -162,7 +162,7 @@ export function getRelevantIdentities(selectedIdentities) {
 
   // get all other valid identities in that same question
   const relevantIdentities = startList.flatMap((identity) => {
-    // find the subwary in ONLY_IDENTITIES that contains this identity
+    // find the subarray in ONLY_IDENTITIES that contains this identity
     const group = ONLY_IDENTITIES.find((arr) => arr.includes(identity));
     // if found, return all identities in that group; otherwise just return the identity itself
     return group ? group : [identity];
