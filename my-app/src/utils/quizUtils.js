@@ -51,8 +51,8 @@ export function calcUserTagScores(userTags) {
   }
 
   // STEP 2: Apply special boosting rule
-  // If someone answered "yes" to a tag 3+ times (avg score of 1), boost them bcz they are clearly interested
-  // Boost means set their score for the tag to 2.0 instead of 1.0
+  // If someone answered many questions about a topic AND got a perfect score, boost them!
+
   let finalScores = {};
 
   // Loop through each calculated average
@@ -174,6 +174,10 @@ export function getRelevantIdentities(selectedIdentities) {
 /**
  * keepColumnsAsArray - THE DATA FILTER
  * ====================================
+ *
+ * This function is like using Excel's "filter columns" feature.
+ * We have a huge spreadsheet of club data, but we only want certain columns.
+ *
  * What it does:
  * - Takes a 2D array
  * - Keeps only the columns we care about
@@ -218,6 +222,14 @@ export function keepColumnsAsArray(data, columnsToKeep, mapping) {
       return value !== undefined ? value : 0;
     })
   );
+
+  // What this does step-by-step:
+  // 1. Validate that requested columns actually exist in the CSV
+  // 2. For each row in the data
+  // 3. For each valid column we want to keep
+  // 4. Look up the column's position using the mapping
+  // 5. Extract that data from the row (with safety checks)
+  // 6. Return the filtered row with only valid data
 }
 
 /**
@@ -239,7 +251,8 @@ export function keepColumnsAsArray(data, columnsToKeep, mapping) {
  * @param {Object} clubDataObj - Object containing club data and mappings.
  *    Structure: { headerMapping: {"Club Name": 0, "links": 1, "Leadership": 2}, rows: [["Club Name", "links", "Leadership"],["Chess Club", "url1", 0.8]] }
  * @param {Array} userIdentityCols - User's identity responses (like major, year, etc.)
- * @returns {Array} - Top 10 club matches with similarity scores
+ * @param {Array} selectedCategories - Categories user selected (optional, for category-specific filtering)
+ * @returns {Array} - Top club matches with weighted similarity scores
  */
 export function rankClubsBySimilarity(
   userVector,
@@ -269,15 +282,8 @@ export function rankClubsBySimilarity(
   // Add a 2.0 for each identity the user selected, and 0 for the ones they didn't
   // This makes clubs that match the user's identities rank higher and those that don't rank lower
   for (let i = 0; i < identitiesToInclude.length; i++) {
-    const identity = identitiesToInclude[i];
-    if (userIdentityCols.includes(identity)) {
-      if (identity === "Greek") {
-        // SPECIAL CASE: Greek life gets a lower boost (1.0 instead of 2.0)
-        // This is because we noticed when this is set to 2.0, results are heavily skewed
-        userVector.push(1.0);
-      } else {
-        userVector.push(2.0);
-      }
+    if (userIdentityCols.includes(identitiesToInclude[i])) {
+      userVector.push(1.0);
     } else {
       userVector.push(0);
     }
@@ -372,6 +378,7 @@ export function rankClubsBySimilarity(
 /**
  * applyCategoryInterestScores - THE CATEGORY BOOSTER
  * ==================================================
+ *
  * This function gives extra credit to users for the categories they selected!
  *
  * How it works:
@@ -398,13 +405,152 @@ export function applyCategoryInterestScores(tempUserTags, selectedCategories) {
 
     // Check if user selected this category
     if (selectedCategories.includes(categoryName)) {
-      // They selected it! Give them a bonus point (1)
+      // They selected it! Give them a stronger boost (2 points instead of 1)
+      // This better differentiates selected categories from unselected ones
+      // The boost is applied twice to emphasize the user's explicit category selection
+      tempUserTags[catTagId].push(1);
       tempUserTags[catTagId].push(1);
     }
     // If they didn't select it, don't do anything special
   }
 
   return tempUserTags;
+}
+
+/**
+ * getCategoryTagIds
+ * ----------------
+ * Gets all tag IDs associated with the selected categories.
+ * This helps filter clubs to ensure they match tags from selected categories.
+ *
+ * @param {Array} selectedCategories - Array of category names
+ * @returns {Set} - Set of tag IDs associated with selected categories
+ */
+export function getCategoryTagIds(selectedCategories) {
+  const tagIds = new Set();
+
+  for (const categoryName of selectedCategories) {
+    const questions = CATEGORY_QUESTIONS[categoryName];
+    if (questions) {
+      // Extract all tag IDs from questions in this category
+      for (const question of questions) {
+        if (Array.isArray(question) && question.length >= 2) {
+          const tags = question[1]; // Second element is array of tag IDs
+          if (Array.isArray(tags)) {
+            tags.forEach((tagId) => tagIds.add(tagId));
+          }
+        }
+      }
+    }
+  }
+
+  return tagIds;
+}
+
+/**
+ * getPrimaryCategoryTagIds
+ * ------------------------
+ * Gets the PRIMARY tag ID for each selected category (the main representative tag).
+ * These are the core tags that must have strong matches for a club to be relevant.
+ *
+ * @param {Array} selectedCategories - Array of category names
+ * @returns {Set} - Set of primary tag IDs for selected categories
+ */
+export function getPrimaryCategoryTagIds(selectedCategories) {
+  const categoryMap = {
+    // 🚀 TECHNOLOGY & ENGINEERING
+    // Includes everything related to software, hardware, AI, robotics, sustainability, and product innovation
+    "Technology & Engineering": [
+      1, // Coding & Software Development
+      2, // Hardware & Prototyping
+      3, // Artificial Intelligence & Machine Learning
+      4, // Data Science & Analytics
+      5, // IoT & Embedded Systems
+      6, // Robotics & Automation
+      7, // Engineering Design & Manufacturing
+      8, // Sustainable Engineering & Renewable Energy
+      9, // Product Management & Startups
+      48, // Technology for Social Good
+    ],
+
+    // 🎨 ARTS & CULTURE
+    // Covers creative, expressive, and cultural mediums
+    "Arts & Culture": [
+      10, // Graphic & Visual Design
+      11, // Fashion & Styling
+      12, // Music Performance & Production
+      13, // Film, Media & Journalism
+      14, // Photography & Visual Arts
+      15, // Creative Writing & Literature
+      16, // Theater & Improv Performance
+      17, // Dance & Movement Arts
+      25, // Cultural & Heritage Community
+      26, // Language Learning & Conversation
+    ],
+
+    // 🏃‍♂️ SPORTS & RECREATION
+    // Includes fitness, wellness, outdoor adventure, and organized sports
+    "Sports & Recreation": [
+      18, // Outdoor Adventure & Recreation
+      19, // Fitness, Wellness & Mindfulness
+      20, // Sports & Competitive Club Teams
+      45, // Vehicle/Off-Road & Motorsport Clubs
+      44, // Gaming, eSports & Tabletop (competitive recreation)
+    ],
+
+    // 💼 PROFESSIONAL DEVELOPMENT & NETWORKING
+    // Business, leadership, and skill-building organizations
+    "Professional Development & Networking": [
+      29, // Professional Development & Networking
+      30, // Business, Finance & Investing
+      31, // Sales & Business Analytics
+      32, // Marketing & Advertising
+      33, // Urban Planning & Real Estate
+      46, // Skills Training & Career Preparation
+      9, // Product Management & Startups
+    ],
+
+    // 💖 HEALTH & WELLNESS
+    // Personal and collective wellbeing, mental and physical health
+    "Health & Wellness": [
+      19, // Fitness, Wellness & Mindfulness
+      37, // Health Sciences & Pre-Professional Tracks
+      38, // Mental Health & Peer Support
+      39, // Spiritual-Faith & Religious Community
+      50, // Life Skills & Personal Growth
+    ],
+
+    // 🤝 COMMUNITY SERVICE & ADVOCACY
+    // Service, equity, diversity, social impact, and volunteering
+    "Community Service & Advocacy": [
+      21, // Community Service & Volunteering
+      22, // Social Entrepreneurship & Impact
+      23, // Non-profit & Advocacy Engagement
+      24, // Diversity, Equity & Inclusion
+      25, // Cultural & Heritage Community
+      40, // LGBTQIA+ Advocacy & Safe Spaces
+      41, // Multicultural Student Communities
+      48, // Technology for Social Good
+      49, // Sustainable Lifestyle & Circular Economy
+    ],
+
+    // 🎓 ACADEMIC & EDUCATIONAL
+    // Scholarly, research, and tutoring-based clubs
+    "Academic & Educational": [
+      28, // Academic Research & Honor Societies
+      47, // Tutoring / Academic Support & Study Groups
+      46, // Skills Training & Career Preparation
+      27, // International & Global Perspectives
+      35, // Environmental Conservation & Ecology
+      34, // Agriculture, Food Systems & Plant Science
+    ],
+  };
+
+  const ids = new Set();
+  selectedCategories.forEach((cat) =>
+    (categoryMap[cat] || []).forEach((id) => ids.add(id))
+  );
+  return ids;
 }
 
 /**
