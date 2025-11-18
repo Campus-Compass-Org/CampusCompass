@@ -155,6 +155,20 @@ function IdentityPage() {
       identityResponses
     );
 
+    // If identity questions were answered, also calculate the results without them for comparison.
+    if (identityResponses.length > 0) {
+      const topTen = rankClubsBySimilarity(
+        userVector,
+        state.clubData,
+        [] // Pass empty array for identity responses
+      );
+      // Store the non-identity results in a separate state for comparison on the results page.
+      dispatch({
+        type: "SET_TOP_CLUBS_WITHOUT_IDENTITY",
+        payload: topTen,
+      });
+    }
+
     // STEP 6: Save the results and take them to see their matches
     dispatch({ type: "SET_TOP_CLUBS", payload: topTen }); // Save the top 10 clubs
     dispatch({ type: "COMPLETE_IDENTITY" }); // Mark identity phase as complete
