@@ -88,7 +88,7 @@ function HomePage() {
               key={category}
               // If category is selected, add "selected" class for different styling
               className={`category-button ${
-                state.selectedCategories.includes(category) ? "selected" : ""
+                state.selectedCategories.includes(category) ? "selected THIS IS A TEST" : ""
               }`}
               onClick={() => handleCategorySelection(category)} // Run our function when clicked
               // Disable button if user already has 3 categories AND this isn't one of them
