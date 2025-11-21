@@ -157,8 +157,6 @@ function IdentityPage() {
         let clubs = clubData["rows"].slice(1); //[['Club1', 'link1', '0.12', '0.32', ...], ['Club2', 'link2', '0.12', '0.32', ...]]
         // identity responses  ["identity1", "identity2", ...]
 
-        console.log(clubs);
-
         // -- filter out greek --
         const greek_idx = headers["Greek"];
         if (!identityResponses.includes("Greek")) {
@@ -243,9 +241,6 @@ function IdentityPage() {
         if (!identityResponses.includes("lgbtq")) {
           clubs = clubs.filter((club) => Number(headers["lgbtq"]) === 0.0);
         }
-
-        console.log(clubs);
-        console.log("WAKEY WAKEY");
       }
       removeNonreleventIdentities(state.clubData, identityResponses);
     }
