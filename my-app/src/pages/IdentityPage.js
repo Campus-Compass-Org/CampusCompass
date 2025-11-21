@@ -238,7 +238,7 @@ function IdentityPage() {
         for (const race of raceList) {
           clubs = clubs.filter(
             (club) =>
-              !(Number(club[raceDict[race]]) === 0.0) ||
+              Number(club[raceDict[race]]) === 1 ||
               race === "other" ||
               identityResponses.includes(race)
           );
@@ -248,7 +248,7 @@ function IdentityPage() {
 
         // -- lgbtq filters --
         if (!identityResponses.includes("lgbtq")) {
-          clubs = clubs.filter((club) => Number(headers["lgbtq"]) === 0.0);
+          clubs = clubs.filter((club) => Number(club[headers["lgbtq"]]) === 0.0);
         }
 
         console.log("CLUBS (lgbt filtered):    ", clubs);
