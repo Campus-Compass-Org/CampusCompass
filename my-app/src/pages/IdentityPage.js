@@ -158,6 +158,7 @@ function IdentityPage() {
         // identity responses  ["identity1", "identity2", ...]
 
         console.log(clubs);
+
         // -- filter out greek --
         const greek_idx = headers["Greek"];
         if (!identityResponses.includes("Greek")) {
@@ -191,14 +192,59 @@ function IdentityPage() {
           );
         }
 
-        console.log(identityResponses);
-        console.log(clubs);
-        console.log();
-
         // gender filters
+        const userGenderIdentity = identityResponses[0]; // hardcoded, may need to be updated if changes are made
+        if (userGenderIdentity === "man men") {
+          clubs = clubs.filter(
+            (club) =>
+              !(
+                Number(club[headers["woman women"]]) === 1.0 &&
+                Number(club[headers["man men"]]) === 0.0
+              )
+          );
+        }
+        if (userGenderIdentity === "woman women") {
+          clubs = clubs.filter(
+            (club) =>
+              !(
+                Number(club[headers["man men"]]) === 1.0 &&
+                Number(club[headers["woman women"]]) === 0.0
+              )
+          );
+        }
 
-        // race/ethnicity filters
+        // -- race filters --
+        let ethnicityQuestion = null;
+        for (const key in IDENTITY_OPTIONS) {
+          if (key.includes("race") || key.includes("Race")) {
+            ethnicityQuestion = key;
+          }
+        }
+        // get list of races
+        const raceList = IDENTITY_OPTIONS[ethnicityQuestion].map(
+          (option) => option["value"] // [religion1, religion2, ...]
+        );
+        // get corresponding header value for each key
+        const raceDict = {}; // ex: {race1: 56, race2: 58, ... }
+        for (const race of raceList) {
+          raceDict[race] = headers[race];
+        }
+        // filter for each club
+        for (const race of raceList) {
+          clubs = clubs.filter(
+            (club) =>
+              !(Number(club[raceDict[race]]) === 1.0) ||
+              race === "other" ||
+              identityResponses.includes(race)
+          );
+        }
 
+        // -- lgbtq filters --
+        if (!identityResponses.includes("lgbtq")) {
+          clubs = clubs.filter((club) => Number(headers["lgbtq"]) === 0.0);
+        }
+
+        console.log(clubs);
         console.log("WAKEY WAKEY");
       }
       removeNonreleventIdentities(state.clubData, identityResponses);
