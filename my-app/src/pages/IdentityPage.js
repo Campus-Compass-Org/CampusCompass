@@ -149,6 +149,61 @@ function IdentityPage() {
 
     // STEP 5: Find the best matching clubs!
     // Finds club vectors that are most similar to user vector (using "cosine similarity")
+
+    if (identityResponses.length > 0) {
+      // filter state.clubData to remove non-related ones using func from quizUtils
+      function removeNonreleventIdentities(clubData, identityResponses) {
+        const headers = clubData["headerMapping"]; //{Club Name: 0, links: 1, Leadership: 2, Teamwork: 3, ...}
+        let clubs = clubData["rows"].slice(1); //[['Club1', 'link1', '0.12', '0.32', ...], ['Club2', 'link2', '0.12', '0.32', ...]]
+        // identity responses  ["identity1", "identity2", ...]
+
+        console.log(clubs);
+        // -- filter out greek --
+        const greek_idx = headers["Greek"];
+        if (!identityResponses.includes("Greek")) {
+          clubs = clubs.filter((club) => Number(club[greek_idx]) === 0.0);
+        }
+
+        // -- filter out religion --
+        // loop through questions and get one that contains "religion"
+        let questionKey = null;
+        for (const key in IDENTITY_OPTIONS) {
+          if (key.includes("religion") || key.includes("Religion")) {
+            questionKey = key;
+          }
+        }
+        // get list of religions
+        const religionsList = IDENTITY_OPTIONS[questionKey].map(
+          (option) => option["value"] // [religion1, religion2, ...]
+        );
+        // get corresponding heafer value for each key
+        const religionsDict = {}; // ex: {religion1: 56, religion2: 58, ... }
+        for (const religion of religionsList) {
+          religionsDict[religion] = headers[religion];
+        }
+        // filter for each club
+        for (const religion of religionsList) {
+          clubs = clubs.filter(
+            (club) =>
+              club[religionsDict[religion]] < 0.8 ||
+              religion === "other" ||
+              identityResponses.includes(religion)
+          );
+        }
+
+        console.log(identityResponses);
+        console.log(clubs);
+        console.log();
+
+        // gender filters
+
+        // race/ethnicity filters
+
+        console.log("WAKEY WAKEY");
+      }
+      removeNonreleventIdentities(state.clubData, identityResponses);
+    }
+
     const topTen = rankClubsBySimilarity(
       userVector,
       state.clubData,
