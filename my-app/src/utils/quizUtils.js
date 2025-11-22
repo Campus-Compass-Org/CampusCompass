@@ -514,7 +514,10 @@ export function removeNonrelevantIdentities(
   }
 
   console.log("CLUBS (lgbt filtered):    ", clubs);
-  return clubs;
+  return {
+    ...clubData,
+    rows: [clubData["rows"][0], ...clubs],
+  };
 }
 
 /**

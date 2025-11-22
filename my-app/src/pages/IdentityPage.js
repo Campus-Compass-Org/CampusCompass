@@ -151,7 +151,7 @@ function IdentityPage() {
     // STEP 5: Find the best matching clubs!
     // Finds club vectors that are most similar to user vector (using "cosine similarity")
 
-    let identityFilteredClubs = null;
+    let identityFilteredClubs = state.clubData; // Default to all club data
     if (identityResponses.length > 0) {
       identityFilteredClubs = removeNonrelevantIdentities(
         state.clubData,
