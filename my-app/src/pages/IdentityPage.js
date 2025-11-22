@@ -162,7 +162,7 @@ function IdentityPage() {
 
     const topTen = rankClubsBySimilarity(
       userVector,
-      state.clubData,
+      identityFilteredClubs,
       identityResponses
     );
 
@@ -170,7 +170,7 @@ function IdentityPage() {
     if (identityResponses.length > 0) {
       const topTen = rankClubsBySimilarity(
         userVector,
-        identityFilteredClubs,
+        state.clubData,
         [] // Pass empty array for identity responses
       );
       // Store the non-identity results in a separate state for comparison on the results page.
