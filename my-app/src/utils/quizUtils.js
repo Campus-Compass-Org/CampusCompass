@@ -410,6 +410,116 @@ export function applyCategoryInterestScores(tempUserTags, selectedCategories) {
   return tempUserTags;
 }
 
+export function removeNonrelevantIdentities(
+  clubData,
+  identityResponses,
+  IDENTITY_OPTIONS
+) {
+  const headers = clubData["headerMapping"]; //{Club Name: 0, links: 1, Leadership: 2, Teamwork: 3, ...}
+  let clubs = clubData["rows"].slice(1); //[['Club1', 'link1', '0.12', '0.32', ...], ['Club2', 'link2', '0.12', '0.32', ...]]
+  // identity responses  ["identity1", "identity2", ...]
+  console.log("CLUBS (none filtered):    ", clubs);
+
+  // -- filter out greek --
+  const greek_idx = headers["Greek"];
+  if (!identityResponses.includes("Greek")) {
+    clubs = clubs.filter((club) => Number(club[greek_idx]) === 0.0);
+  }
+
+  console.log("CLUBS (greek filtered):    ", clubs);
+
+  // -- filter out religion --
+  // loop through questions and get one that contains "religion"
+  let questionKey = null;
+  for (const key in IDENTITY_OPTIONS) {
+    if (key.includes("religion") || key.includes("Religion")) {
+      questionKey = key;
+    }
+  }
+  // get list of religions
+  const religionsList = IDENTITY_OPTIONS[questionKey].map(
+    (option) => option["value"] // [religion1, religion2, ...]
+  );
+  // get corresponding heafer value for each key
+  const religionsDict = {}; // ex: {religion1: 56, religion2: 58, ... }
+  for (const religion of religionsList) {
+    religionsDict[religion] = headers[religion];
+  }
+  // filter for each club
+  for (const religion of religionsList) {
+    clubs = clubs.filter(
+      (club) =>
+        club[religionsDict[religion]] < 0.8 ||
+        religion === "other" ||
+        identityResponses.includes(religion)
+    );
+  }
+
+  console.log("CLUBS (religion filtered):    ", clubs);
+
+  // gender filters
+  const userGenderIdentity = identityResponses[0]; // hardcoded, may need to be updated if changes are made
+  if (userGenderIdentity === "man men") {
+    clubs = clubs.filter(
+      (club) =>
+        !(
+          Number(club[headers["woman women"]]) === 1.0 &&
+          Number(club[headers["man men"]]) === 0.0
+        )
+    );
+  }
+  if (userGenderIdentity === "woman women") {
+    clubs = clubs.filter(
+      (club) =>
+        !(
+          Number(club[headers["man men"]]) === 1.0 &&
+          Number(club[headers["woman women"]]) === 0.0
+        )
+    );
+  }
+
+  console.log("CLUBS (gender filtered):    ", clubs);
+
+  // -- race filters --
+  let ethnicityQuestion = null;
+  for (const key in IDENTITY_OPTIONS) {
+    if (key.includes("race") || key.includes("Race")) {
+      ethnicityQuestion = key;
+    }
+  }
+  // get list of races
+  const raceList = IDENTITY_OPTIONS[ethnicityQuestion].map(
+    (option) => option["value"] // [religion1, religion2, ...]
+  );
+  // get corresponding header value for each key
+  const raceDict = {}; // ex: {race1: 56, race2: 58, ... }
+  for (const race of raceList) {
+    raceDict[race] = headers[race];
+  }
+  // filter for each club
+  for (const race of raceList) {
+    clubs = clubs.filter(
+      (club) =>
+        Number(club[raceDict[race]]) === 1 ||
+        race === "other" ||
+        identityResponses.includes(race)
+    );
+  }
+
+  console.log("CLUBS (race filtered):    ", clubs);
+
+  // -- lgbtq filters --
+  if (!identityResponses.includes("lgbtq")) {
+    clubs = clubs.filter((club) => Number(club[headers["lgbtq"]]) === 0.0);
+  }
+
+  console.log("CLUBS (lgbt filtered):    ", clubs);
+  return {
+    ...clubData,
+    rows: [clubData["rows"][0], ...clubs],
+  };
+}
+
 /**
  * renameCategoryToNumber
  * -------------------
