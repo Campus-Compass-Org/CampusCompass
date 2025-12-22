@@ -14,6 +14,7 @@ import {
   calcUserTagScores,
   applyCategoryInterestScores,
   rankClubsBySimilarity,
+  removeNonrelevantIdentities,
 } from "../utils/quizUtils";
 // Import the CSS styles for this specific page
 import "./IdentityPage.css";
@@ -149,9 +150,19 @@ function IdentityPage() {
 
     // STEP 5: Find the best matching clubs!
     // Finds club vectors that are most similar to user vector (using "cosine similarity")
+
+    let identityFilteredClubs = state.clubData; // Default to all club data
+    if (identityResponses.length > 0) {
+      identityFilteredClubs = removeNonrelevantIdentities(
+        state.clubData,
+        identityResponses,
+        IDENTITY_OPTIONS
+      );
+    }
+
     const topTen = rankClubsBySimilarity(
       userVector,
-      state.clubData,
+      identityFilteredClubs,
       identityResponses
     );
 
