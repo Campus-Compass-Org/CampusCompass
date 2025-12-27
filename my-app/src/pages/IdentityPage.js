@@ -9,6 +9,8 @@ import Dropdown from "../components/Dropdown";
 import { useQuiz } from "../context/QuizContext";
 // These contain the identity questions and their possible answer options
 import { IDENTITY_QUESTIONS, IDENTITY_OPTIONS } from "../data/identity";
+import { supabase } from "../utils/supabase";
+
 // These are utility functions that do complex calculations for club matching
 import {
   calcUserTagScores,
@@ -66,8 +68,8 @@ function IdentityPage() {
    * - Calculation function figures out best clubs based on quiz answers only
    * - User gets taken to results page
    */
-  const handleSkipIdentity = () => {
-    finalizeScoresAndComputeClubs(); // Calculate results without identity info
+  const handleSkipIdentity = async () => {
+    await finalizeScoresAndComputeClubs(); // Calculate results without identity info
   };
 
   /**
@@ -90,7 +92,7 @@ function IdentityPage() {
    *    - If last question: calculate final results and go to results page
    *    - If not last: move to next question and reset the dropdown
    */
-  const handleNext = () => {
+  const handleNext = async () => {
     // Get selected value
     const value = selectedOption.value;
 
@@ -98,7 +100,8 @@ function IdentityPage() {
     if (state.currentQuestionIndex >= questionsForIdentity.length - 1) {
       // All identity questions answered - calculate final results
       const allResponses = [...state.userIdentityResponses, value];
-      finalizeScoresAndComputeClubs(allResponses);
+      dispatch({ type: "ADD_IDENTITY_RESPONSE", payload: value }); //update global state to include last question answer
+      await finalizeScoresAndComputeClubs(allResponses);
     } else {
       // Save this answer to our global quiz state
       dispatch({ type: "ADD_IDENTITY_RESPONSE", payload: value });
@@ -107,6 +110,97 @@ function IdentityPage() {
       setSelectedOption(null); // Reset selectedOption for next question
     }
   };
+
+  // Handles writing all survey data to Supabase.
+  async function storeSurveyInSupabase({
+    userVector,
+    identityResponses,
+    topClubs,
+    topClubsWithoutIdentity,
+  }) {
+    // Retrieve the logged-in Supabase user
+    const { data: authData } = await supabase.auth.getUser();
+    const supabaseUserId = authData?.user?.id;
+
+    if (!supabaseUserId) {
+      console.error("No logged-in user. Cannot store survey.");
+      return;
+    }
+
+    const identityAnswered = identityResponses.length > 0;
+
+    // Convert ordered array to structured identity fields
+    const identityMap = {
+      gender: identityResponses[0] || null,
+      race: identityResponses[1] || null,
+      major: identityResponses[2] || null,
+      religion: identityResponses[3] || null,
+      lgbtq: identityResponses[4] || null,
+      greek_life: identityResponses[5] || null,
+    };
+
+    // 1. Insert into survey_responses
+    const { data: surveyResponse, error: surveyError } = await supabase
+      .from("survey_responses")
+      .insert({
+        user_id: supabaseUserId,
+        survey_id: null,
+        identity_answered: identityAnswered,
+        raw_user_vector: userVector,
+        ...identityMap,
+      })
+      .select()
+      .single();
+
+    if (surveyError) {
+      console.error("Error inserting survey response:", surveyError);
+      return;
+    }
+
+    // 2. Insert recommendation runs
+    const insertRun = async (mode) => {
+      const { data, error } = await supabase
+        .from("recommendation_runs")
+        .insert({
+          response_id: surveyResponse.id,
+          mode,
+          user_vector: userVector,
+        })
+        .select()
+        .single();
+      if (error) console.error("Error inserting run:", error);
+      return data;
+    };
+
+    const withRun = await insertRun("with_identity");
+    if (!withRun) throw new Error("Failed to create with_identity run");
+    const withoutRun = await insertRun("without_identity");
+    if (!withoutRun) throw new Error("Failed to create without_identity run");
+
+    // 3. Insert 50 club recommendations
+    const recRows = [
+      ...topClubs.map((club, i) => ({
+        run_id: withRun.id,
+        org_id: club.id,
+        rank: i + 1,
+        match_accuracy: club.score,
+      })),
+      ...topClubsWithoutIdentity.map((club, i) => ({
+        run_id: withoutRun.id,
+        org_id: club.id,
+        rank: i + 1,
+        match_accuracy: club.score,
+      })),
+    ];
+
+    const { error: recError } = await supabase
+      .from("survey_recommendations")
+      .insert(recRows);
+
+    if (recError) {
+      console.error("Error inserting recommendations:", recError);
+    }
+  }
 
   /**
    *
@@ -124,7 +218,7 @@ function IdentityPage() {
    *
    * @param {Array} identityResponses - Array of user's identity question answers (optional)
    */
-  const finalizeScoresAndComputeClubs = (identityResponses = []) => {
+  const finalizeScoresAndComputeClubs = async (identityResponses = []) => {
     // STEP 1: Make a safe copy of user's quiz answers so we don't accidentally change the original
     let tempUserTags = JSON.parse(JSON.stringify(state.userTags));
 
@@ -146,33 +240,38 @@ function IdentityPage() {
       // JavaScript automatically converts the integer 1 to the string "1" for object property access (automatic type coercion)
       userVector.push(finalScores[tagId]);
     }
-
-    // STEP 5: Find the best matching clubs!
-    // Finds club vectors that are most similar to user vector (using "cosine similarity")
-    const topTen = rankClubsBySimilarity(
+    // Compute results WITH identity
+    const topClubs = rankClubsBySimilarity(
       userVector,
       state.clubData,
       identityResponses
     );
 
-    // If identity questions were answered, also calculate the results without them for comparison.
-    if (identityResponses.length > 0) {
-      const topTen = rankClubsBySimilarity(
-        userVector,
-        state.clubData,
-        [] // Pass empty array for identity responses
-      );
-      // Store the non-identity results in a separate state for comparison on the results page.
-      dispatch({
-        type: "SET_TOP_CLUBS_WITHOUT_IDENTITY",
-        payload: topTen,
-      });
-    }
+    // Compute results WITHOUT identity
+    const topClubsWithoutIdentity = rankClubsBySimilarity(
+      userVector,
+      state.clubData,
+      []
+    );
 
-    // STEP 6: Save the results and take them to see their matches
-    dispatch({ type: "SET_TOP_CLUBS", payload: topTen }); // Save the top 10 clubs
-    dispatch({ type: "COMPLETE_IDENTITY" }); // Mark identity phase as complete
-    navigate("/results"); // Go to results page to show their matches
+    // Save results to React global state
+    dispatch({ type: "SET_TOP_CLUBS", payload: topClubs });
+    dispatch({
+      type: "SET_TOP_CLUBS_WITHOUT_IDENTITY",
+      payload: topClubsWithoutIdentity,
+    });
+    dispatch({ type: "COMPLETE_IDENTITY" });
+
+    // Call the async Supabase writer, wait for db writes to finish or throw
+    await storeSurveyInSupabase({
+      userVector,
+      identityResponses,
+      topClubs,
+      topClubsWithoutIdentity,
+    });
+
+    // Immediately navigate to results. The async saving will continue in the background.
+    navigate("/results");
   };
 
   // SCREEN 1: Initial choice screen - "Do you want to answer identity questions?"
