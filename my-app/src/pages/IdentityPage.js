@@ -11,7 +11,6 @@ import { useQuiz } from "../context/QuizContext";
 import { IDENTITY_QUESTIONS, IDENTITY_OPTIONS } from "../data/identity";
 // This service function handles storing survey and recommendation data in Supabase
 import { storeSurveyInSupabase } from "../services/storeSurveyService";
-
 // These are utility functions that do complex calculations for club matching
 import {
   calcUserTagScores,
@@ -43,11 +42,9 @@ function IdentityPage() {
   // 'state' = current quiz data (like what answers they've given)
   // 'dispatch' = function to update/change the quiz data
   const { state, dispatch } = useQuiz();
-
   const navigate = useNavigate();
 
   // selectedOption tracks what the user picked in the current dropdown
-  // starts as null (nothing selected), updates when they choose something
   const [selectedOption, setSelectedOption] = useState(null);
 
   // Only allow access if they completed the main survey
@@ -169,7 +166,7 @@ function IdentityPage() {
       type: "SET_TOP_CLUBS",
       payload: topClubs,
     });
-    
+
     // Only dispatch topClubsWithoutIdentity if user answered identity questions
     if (identityResponses.length > 0) {
       dispatch({
@@ -177,7 +174,7 @@ function IdentityPage() {
         payload: topClubsWithoutIdentity,
       });
     }
-    
+
     dispatch({ type: "COMPLETE_IDENTITY" });
 
     // Call the async Supabase writer, wait for db writes to finish or throw err
