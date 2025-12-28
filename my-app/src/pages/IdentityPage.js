@@ -9,7 +9,8 @@ import Dropdown from "../components/Dropdown";
 import { useQuiz } from "../context/QuizContext";
 // These contain the identity questions and their possible answer options
 import { IDENTITY_QUESTIONS, IDENTITY_OPTIONS } from "../data/identity";
-import { supabase } from "../utils/supabase";
+// This service function handles storing survey and recommendation data in Supabase
+import { storeSurveyInSupabase } from "../services/storeSurveyService";
 
 // These are utility functions that do complex calculations for club matching
 import {
@@ -111,97 +112,6 @@ function IdentityPage() {
     }
   };
 
-  // Handles writing all survey data to Supabase.
-  async function storeSurveyInSupabase({
-    userVector,
-    identityResponses,
-    topClubs,
-    topClubsWithoutIdentity,
-  }) {
-    // Retrieve the logged-in Supabase user
-    const { data: authData } = await supabase.auth.getUser();
-    const supabaseUserId = authData?.user?.id;
-
-    if (!supabaseUserId) {
-      console.error("No logged-in user. Cannot store survey.");
-      return;
-    }
-
-    const identityAnswered = identityResponses.length > 0;
-
-    // Convert ordered array to structured identity fields
-    const identityMap = {
-      gender: identityResponses[0] || null,
-      race: identityResponses[1] || null,
-      major: identityResponses[2] || null,
-      religion: identityResponses[3] || null,
-      lgbtq: identityResponses[4] || null,
-      greek_life: identityResponses[5] || null,
-    };
-
-    // 1. Insert into survey_responses
-    const { data: surveyResponse, error: surveyError } = await supabase
-      .from("survey_responses")
-      .insert({
-        user_id: supabaseUserId,
-        survey_id: null,
-        identity_answered: identityAnswered,
-        raw_user_vector: userVector,
-        ...identityMap,
-      })
-      .select()
-      .single();
-
-    if (surveyError) {
-      console.error("Error inserting survey response:", surveyError);
-      return;
-    }
-
-    // 2. Insert recommendation runs
-    const insertRun = async (mode) => {
-      const { data, error } = await supabase
-        .from("recommendation_runs")
-        .insert({
-          response_id: surveyResponse.id,
-          mode,
-          user_vector: userVector,
-        })
-        .select()
-        .single();
-      if (error) console.error("Error inserting run:", error);
-      return data;
-    };
-
-    const withRun = await insertRun("with_identity");
-    if (!withRun) throw new Error("Failed to create with_identity run");
-    const withoutRun = await insertRun("without_identity");
-    if (!withoutRun) throw new Error("Failed to create without_identity run");
-
-    // 3. Insert 50 club recommendations
-    const recRows = [
-      ...topClubs.map((club, i) => ({
-        run_id: withRun.id,
-        org_id: club.id,
-        rank: i + 1,
-        match_accuracy: club.score,
-      })),
-      ...topClubsWithoutIdentity.map((club, i) => ({
-        run_id: withoutRun.id,
-        org_id: club.id,
-        rank: i + 1,
-        match_accuracy: club.score,
-      })),
-    ];
-
-    const { error: recError } = await supabase
-      .from("survey_recommendations")
-      .insert(recRows);
-
-    if (recError) {
-      console.error("Error inserting recommendations:", recError);
-    }
-  }
-
   /**
    *
    * This function takes all the user's answers and figures out which clubs they'd like best.
@@ -230,16 +140,14 @@ function IdentityPage() {
     );
 
     // STEP 3: Calculate final scores for each tag
-    // This averages the answers for each tag to get one final score per tag, as well as applying any boosts
     const finalScores = calcUserTagScores(tempUserTags);
 
     // STEP 4: Build the user vector of their preferences for each of the 40 interest tags
     const userVector = [];
-    // We loop from 1 to length of ALL_TAGS because that's how the tags are numbered in our system
     for (let tagId = 1; tagId <= Object.keys(ALL_TAGS).length; tagId++) {
-      // JavaScript automatically converts the integer 1 to the string "1" for object property access (automatic type coercion)
       userVector.push(finalScores[tagId]);
     }
+
     // Compute results WITH identity
     const topClubs = rankClubsBySimilarity(
       userVector,
@@ -247,22 +155,32 @@ function IdentityPage() {
       identityResponses
     );
 
-    // Compute results WITHOUT identity
-    const topClubsWithoutIdentity = rankClubsBySimilarity(
-      userVector,
-      state.clubData,
-      []
-    );
+    // Compute results WITHOUT identity only if user answered identity questions
+    let topClubsWithoutIdentity = [];
+    if (identityResponses.length > 0) {
+      topClubsWithoutIdentity = rankClubsBySimilarity(
+        userVector,
+        state.clubData,
+        []
+      );
+    }
 
-    // Save results to React global state
-    dispatch({ type: "SET_TOP_CLUBS", payload: topClubs });
     dispatch({
-      type: "SET_TOP_CLUBS_WITHOUT_IDENTITY",
-      payload: topClubsWithoutIdentity,
+      type: "SET_TOP_CLUBS",
+      payload: topClubs,
     });
+    
+    // Only dispatch topClubsWithoutIdentity if user answered identity questions
+    if (identityResponses.length > 0) {
+      dispatch({
+        type: "SET_TOP_CLUBS_WITHOUT_IDENTITY",
+        payload: topClubsWithoutIdentity,
+      });
+    }
+    
     dispatch({ type: "COMPLETE_IDENTITY" });
 
-    // Call the async Supabase writer, wait for db writes to finish or throw
+    // Call the async Supabase writer, wait for db writes to finish or throw err
     await storeSurveyInSupabase({
       userVector,
       identityResponses,
