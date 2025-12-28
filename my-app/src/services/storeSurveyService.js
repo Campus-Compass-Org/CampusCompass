@@ -2,12 +2,12 @@ import { supabase } from "../utils/supabase";
 
 /**
  * Handles writing all survey data to Supabase.
- * 
+ *
  * This function stores:
  * 1. Survey response with user vector and identity answers
  * 2. Two recommendation runs (with and without identity filtering)
  * 3. Club recommendations for both runs
- * 
+ *
  * @param {Array} params.userVector - User's calculated interest scores
  * @param {Array} params.identityResponses - User's identity question answers
  * @param {Array} params.topClubs - Recommended clubs with identity filtering
